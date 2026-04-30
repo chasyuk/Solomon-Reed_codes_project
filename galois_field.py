@@ -26,6 +26,13 @@ class GaloisField:
 
         return self.__primitive_table[new_degree]
 
+    def inverse(self):
+        p = self.__reversed_primitive_table[f"{bin(self.coeffs)}"]
+        inv_p = (self.degree - 1 - p) % (self.degree - 1)
+        return GaloisField(self.degree, self._generator_poly, int(self.__primitive_table[inv_p], 2))
+
+    def __truediv__(self, other):
+        return self * other.inverse()
 
     def __len__(self):
         return len(self.coeffs)
@@ -35,3 +42,4 @@ if __name__ == '__main__':
     b = GaloisField(4, 0b10011, 0b1110)
     print(a + b)
     print(a * b)
+    print(a / b)
