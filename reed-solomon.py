@@ -38,7 +38,7 @@ class ReedSolomon:
             new_code[idx] = poly
 
     def __truediv__(self, other):
-        
+
 
     def __add__(self, other):
         for i in range(self.m):
