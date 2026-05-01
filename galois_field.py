@@ -38,6 +38,18 @@ class GaloisField:
     def __len__(self):
         return len(self.coeffs)
 
+    def __str__(self):
+        polynomial = ""
+
+        for idx, elem in enumerate(f"{self.coeffs:b}"):
+            polynomial += f"x**{self.degree - idx - 1} +"
+
+
+        return polynomial[:-2]
+
+    def __repr__(self):
+        return str(self.coeffs)
+
 if __name__ == '__main__':
     a = GaloisField(4, 0b10011, 0b0101)
     b = GaloisField(4, 0b10011, 0b1110)
