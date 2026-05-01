@@ -10,6 +10,7 @@ class GaloisField:
 
 
     def __init__(self, degree, generator_poly, coeffs):
+        self._m = degree
         self.degree = 2 ** degree
         self._generator_poly = generator_poly
         self.coeffs = coeffs
@@ -29,7 +30,7 @@ class GaloisField:
     def inverse(self):
         p = self.__reversed_primitive_table[f"{bin(self.coeffs)}"]
         inv_p = (self.degree - 1 - p) % (self.degree - 1)
-        return GaloisField(self.degree, self._generator_poly, int(self.__primitive_table[inv_p], 2))
+        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[inv_p], 2))
 
     def __truediv__(self, other):
         return self * other.inverse()
