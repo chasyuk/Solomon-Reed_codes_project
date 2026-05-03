@@ -19,9 +19,12 @@ class GaloisField:
         if not isinstance(other, GaloisField):
             return self
 
-        return self.coeffs ^ other.coeffs
+        res_coeffs = self.coeffs ^ other.coeffs
+        return GaloisField(self._m, self._generator_poly, res_coeffs)
 
     def __mul__(self, other):
+        if self.coeffs == 0 or other.coeffs == 0:
+            return GaloisField(self._m, self._generator_poly, 0)
         new_degree = self.__reversed_primitive_table[f"{bin(self.coeffs)}"] + self.__reversed_primitive_table[f"{bin(other.coeffs)}"]
         new_degree %= (self.degree - 1)
 
@@ -33,6 +36,10 @@ class GaloisField:
         return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[inv_p], 2))
 
     def __truediv__(self, other):
+        if other.coeffs == 0:
+            raise ZeroDivisionError("Ділення на нуль в полі Галуа неможливе!")
+        if self.coeffs == 0:
+            return GaloisField(self._m, self._generator_poly, 0)
         return self * other.inverse()
 
     def __len__(self):
