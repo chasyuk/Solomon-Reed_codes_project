@@ -25,7 +25,7 @@ class GaloisField:
         new_degree = self.__reversed_primitive_table[f"{bin(self.coeffs)}"] + self.__reversed_primitive_table[f"{bin(other.coeffs)}"]
         new_degree %= (self.degree - 1)
 
-        return self.__primitive_table[new_degree]
+        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[new_degree], 2))
 
     def inverse(self):
         p = self.__reversed_primitive_table[f"{bin(self.coeffs)}"]
