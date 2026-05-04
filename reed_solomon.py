@@ -35,8 +35,10 @@ class ReedSolomon:
             self.poly.append(GaloisField(self.m, self.gen_poly, 0))
 
         self.poly[degree] = value
-
+            
     def __getitem__(self, degree):
+        if degree >= len(self.poly):
+            return GaloisField(self.m, self.gen_poly, 0)
         return self.poly[degree]
 
     @property
