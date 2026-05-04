@@ -54,7 +54,7 @@ class TestGaloisField:
         for i in range(1, 16):
             a = gf(i)
             inv = a.inverse()
-            assert int(a * inv, 2) == 1
+            assert (a * inv).coeffs == 1
             assert inv.inverse().coeffs == a.coeffs
 
     def test_repr_and_str(self, gf):
@@ -131,7 +131,8 @@ class TestReedSolomon:
         assert all(c.coeffs == 0 for c in ((a * b) % b).poly)
 
     def test_truediv(self):
-        assert (ReedSolomon() / ReedSolomon()) in (None, ...)
+        with pytest.raises(ZeroDivisionError):
+            ReedSolomon() / ReedSolomon()
 
     def test_code_poly(self):
         rs = ReedSolomon(4, 11)
@@ -154,8 +155,8 @@ class TestReedSolomon:
         assert str(rs).count("x**") == 2
 
     def test_main_execution(self, capsys):
-        runpy.run_path("reed-solomon.py", run_name="__main__")
-        assert "16" in capsys.readouterr().out
+        runpy.run_path("reed_solomon.py", run_name="__main__")
+        assert "УСПІШНИЙ" in capsys.readouterr().out
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
