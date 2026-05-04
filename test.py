@@ -38,17 +38,17 @@ class TestGaloisField:
         assert a.coeffs == 5
 
     def test_add(self, gf):
-        assert (gf(5) + gf(14)) == 5 ^ 14
-        assert (gf(11) + gf(11)) == 0
+        assert (gf(5) + gf(14)).coeffs == 5 ^ 14
+        assert (gf(11) + gf(11)).coeffs == 0
         a = gf(5)
         assert (a + 42) is a  # Invalid type fallback
 
     def test_mul_and_div(self, gf):
         a, b = gf(2), gf(3)
         res = a * b
-        assert isinstance(res, str)
-        assert int(a / a, 2) == 1
-        assert int(gf(7) / gf(1), 2) == 7
+        assert isinstance(res, GaloisField)
+        assert (a / a).coeffs == 1
+        assert (gf(7) / gf(1)).coeffs == 7
 
     def test_inverse(self, gf):
         for i in range(1, 16):
