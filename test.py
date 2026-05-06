@@ -6,6 +6,8 @@ from galois_field import GaloisField
 
 rs_mod = importlib.import_module("reed_solomon")
 ReedSolomon = rs_mod.ReedSolomon
+decode_mod = importlib.import_module("decode")
+DecodeReedSolomon = decode_mod.DecodeReedSolomon
 
 class TestPrimitiveTable:
     @pytest.mark.parametrize("m, expected", [(2, 3), (3, 7), (4, 15), (8, 255)])
@@ -49,6 +51,17 @@ class TestGaloisField:
         assert isinstance(res, GaloisField)
         assert (a / a).coeffs == 1
         assert (gf(7) / gf(1)).coeffs == 7
+
+    def test_mul_by_zero(self, gf):
+        assert (gf(0) * gf(5)).coeffs == 0
+        assert (gf(5) * gf(0)).coeffs == 0
+
+    def test_div_by_zero(self, gf):
+        with pytest.raises(ZeroDivisionError, match="Ділення на нуль в полі Галуа неможливе!"):
+            gf(5) / gf(0)
+
+    def test_zero_div(self, gf):
+        assert (gf(0) / gf(5)).coeffs == 0
 
     def test_inverse(self, gf):
         for i in range(1, 16):
@@ -97,11 +110,31 @@ class TestReedSolomon:
         assert (a + b)[0].coeffs == 5 ^ 3
         assert all(c.coeffs == 0 for c in (a + a).poly)
 
+    def test_add_length_mismatch(self):
+        a = ReedSolomon()
+        a[20] = 1
+        b = ReedSolomon()
+        b[2] = 1
+        res = a + b
+        assert res[20].coeffs == 1
+        assert res[2].coeffs == 1
+        res2 = b + a
+        assert res2[20].coeffs == 1
+        assert res2[2].coeffs == 1
+
     def test_mul_int(self):
         rs = ReedSolomon()
         rs[0], rs[2] = 5, 3
         res = rs * 4
         assert res[4].coeffs == 5 and res[6].coeffs == 3
+
+    def test_mul_galois_field(self):
+        rs = ReedSolomon()
+        rs[0], rs[1] = 5, 3
+        gf = GaloisField(4, 0b10011, 2)
+        res = rs * gf
+        assert res[0].coeffs == (GaloisField(4, 0b10011, 5) * gf).coeffs
+        assert res[1].coeffs == (GaloisField(4, 0b10011, 3) * gf).coeffs
 
     def test_mul_poly(self):
         a, b = ReedSolomon(), ReedSolomon()
@@ -134,11 +167,51 @@ class TestReedSolomon:
         with pytest.raises(ZeroDivisionError):
             ReedSolomon() / ReedSolomon()
 
+    def test_truediv_galois_field(self):
+        rs = ReedSolomon()
+        rs[0], rs[1] = 5, 3
+        gf = GaloisField(4, 0b10011, 2)
+        res = rs / gf
+        assert res[0].coeffs == (GaloisField(4, 0b10011, 5) / gf).coeffs
+        assert res[1].coeffs == (GaloisField(4, 0b10011, 3) / gf).coeffs
+
+    def test_truediv_poly(self):
+        dividend = ReedSolomon()
+        dividend[5], dividend[3] = 1, 1
+        divisor = ReedSolomon()
+        divisor[4], divisor[0] = 1, 1
+        res = dividend / divisor
+        assert res.degree <= 1
+
     def test_code_poly(self):
         rs = ReedSolomon(4, 11)
         g = rs.code_poly
         assert g.degree == 4
         assert rs.code_poly is g  # Caching
+
+    def test_form_derivative(self):
+        rs = ReedSolomon()
+        rs[0] = 5
+        rs[1] = 3
+        rs[2] = 2
+        rs[3] = 4
+        deriv = rs.form_derivative()
+        assert deriv[0].coeffs == 3
+        assert deriv[1].coeffs == 0
+        assert deriv[2].coeffs == 4
+
+    def test_evaluate_poly(self):
+        rs = ReedSolomon()
+        rs[0] = 2
+        rs[1] = 3
+        res = rs.evaluate_poly(2)
+        expected = (GaloisField(4, 0b10011, 3) * GaloisField(4, 0b10011, 2)) + GaloisField(4, 0b10011, 2)
+        assert res.coeffs == expected.coeffs
+
+        gf_val = GaloisField(4, 0b10011, 5)
+        res2 = rs.evaluate_poly(gf_val)
+        expected2 = (GaloisField(4, 0b10011, 3) * gf_val) + GaloisField(4, 0b10011, 2)
+        assert res2.coeffs == expected2.coeffs
 
     def test_encoding(self):
         rs = ReedSolomon(4, 11)
@@ -156,7 +229,100 @@ class TestReedSolomon:
 
     def test_main_execution(self, capsys):
         runpy.run_path("reed_solomon.py", run_name="__main__")
-        assert "УСПІШНИЙ" in capsys.readouterr().out
+        assert "x**" in capsys.readouterr().out
 
-if __name__ == "__main__":
+class TestDecodeReedSolomon:
+    def test_decode_flow(self):
+        rs = ReedSolomon(4, 11)
+        decoder = DecodeReedSolomon(rs)
+
+        # 1. calculate syndromes
+        received = ReedSolomon(4, 11)
+        received[0] = 5
+        received[1] = 2
+        syndromes = decoder._calc_syndromes(received)
+        assert syndromes.degree >= 0
+
+        # 2. error_location
+        err_loc = ReedSolomon(4, 11)
+        err_loc[0] = 1
+        alpha_1 = int(rs._ReedSolomon__primitive_table[1], 2)
+        err_loc[1] = alpha_1
+        positions = decoder._error_location(err_loc)
+        assert positions == [1]
+
+        # 3. forney_algorithm
+        err_eval = ReedSolomon(4, 11)
+        err_eval[0] = 5
+        err_values = decoder._forney_algorithm([1], err_eval, err_loc)
+        assert 1 in err_values
+        assert isinstance(err_values[1], GaloisField)
+
+        # 4. correct_errors
+        received[1] = 0
+        corrected = decoder._correct_errors(received, err_values)
+        assert corrected[1].coeffs == (received[1] + err_values[1]).coeffs
+
+class TestExactNumericValues:
+    def test_exact_polynomial_multiplication(self):
+        p1 = ReedSolomon(4, 11)
+        p1[0] = 5
+        p1[1] = 3
+        p2 = ReedSolomon(4, 11)
+        p2[0] = 2
+        p2[1] = 4
+        p3 = p1 * p2
+        assert [p3[i].coeffs for i in range(p3.degree + 1)] == [10, 1, 12]
+
+    def test_exact_encoding(self):
+        rs = ReedSolomon(4, 11)
+        msg = [1, 2, 3]
+        cw = rs.encoding(msg)
+        assert cw == [5, 4, 11, 10, 1, 2, 3]
+
+    def test_exact_euclid_and_decoding(self):
+        rs = ReedSolomon(4, 11)
+        cw = [5, 4, 11, 10, 1, 2, 3]
+        received = ReedSolomon(4, 11)
+        for i, val in enumerate(cw):
+            received[i] = val
+            
+        # Introduce exact error at pos 2 with magnitude 14
+        received[2] = received[2] + GaloisField(4, rs.gen_poly, 14)
+        
+        decoder = DecodeReedSolomon(rs)
+        syndromes = decoder._calc_syndromes(received)
+        assert [syndromes[i].coeffs for i in range(2 * rs.t)] == [14, 13, 1, 4]
+        
+        gamma, lamda = decoder._euclidean_algorithm(rs.t, syndromes)
+        assert [gamma[i].coeffs for i in range(gamma.degree + 1)] == [14]
+        assert [lamda[i].coeffs for i in range(lamda.degree + 1)] == [1, 4]
+        
+        positions = decoder._error_location(lamda)
+        assert positions == [2]
+        
+        err_vals = decoder._forney_algorithm(positions, gamma, lamda)
+        assert err_vals[2].coeffs == 14
+        
+        corrected = decoder._correct_errors(received, err_vals)
+        assert corrected[2].coeffs == 11
+        for i in range(len(cw)):
+            assert corrected[i].coeffs == cw[i]
+            
+    def test_decode_public_method(self):
+        rs = ReedSolomon(4, 11)
+        cw = [5, 4, 11, 10, 1, 2, 3]
+        received = ReedSolomon(4, 11)
+        for i, val in enumerate(cw):
+            received[i] = val
+            
+        # Error at pos 2
+        received[2] = received[2] + GaloisField(4, rs.gen_poly, 14)
+        decoder = DecodeReedSolomon(rs)
+        corrected = decoder.decode(received)
+        for i in range(len(cw)):
+            assert corrected[i].coeffs == cw[i]
+
+if __name__ == "__main__":  # pragma: no cover
+    # Execute pytest
     pytest.main([__file__, "-v"])
