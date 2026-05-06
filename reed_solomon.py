@@ -10,11 +10,10 @@ DEFAULT_POLYS = {
 
 class ReedSolomon:
 
-    __primitive_table = build_gf_antilog_table(8)
-    __reversed_primitive_table = {value: key for key, value in __primitive_table.items()}
 
-
-    def __init__(self, m=8, k=11):
+    def __init__(self, m=8, k=223):
+        self.__primitive_table = build_gf_antilog_table(m)
+        self.__reversed_primitive_table = {value: key for key, value in self.__primitive_table.items()}
         self.m = m
         self.k = k
         self.gf_size = 2**m
@@ -156,7 +155,8 @@ class ReedSolomon:
 
         return derivative
 
-    def encoding(self, message_list):
+    def encode(self):
+        message_list = self.poly
         msg_poly = ReedSolomon(self.m, self.k)
         for i, val in enumerate(message_list):
             msg_poly[i] = val
@@ -165,7 +165,12 @@ class ReedSolomon:
         codeword_poly = shifted_msg + divided_poly
 
         max_deg = codeword_poly.degree
-        return [codeword_poly[i].coeffs for i in range(max_deg + 1)]
+        # return divided_poly
+        self.poly = [GaloisField(self.m, self.gen_poly, int(codeword_poly[i].coeffs)) for i in range(max_deg + 1)]
+
+    def get_original(self):
+        self.poly = self.poly[2 * self.t:]
+
 
     def evaluate_poly(self, x_val):
         if isinstance(x_val, int):
@@ -180,13 +185,13 @@ class ReedSolomon:
 
     def __str__(self):
         polynomial = ""
+        poly_size = len(self.poly)
+        for idx, field in enumerate(reversed(self.poly)):
+            polynomial += repr(field) + f"{"x^" + str(poly_size - idx - 1) if poly_size - idx - 1 > 0 else ''} + "  if repr(field) != '0' else ""
 
-        for idx, field in enumerate(self.poly):
-            polynomial += repr(field) + f"x**{self.gf_size - idx - 1}+"  if repr(field) != '0' else ""
-
-        return polynomial[:-1]
-
+        return polynomial.rstrip(' + ')
 
 if __name__ == '__main__':
     g = ReedSolomon(4, 11)
+    print(g.encode())
     print(g.code_poly)

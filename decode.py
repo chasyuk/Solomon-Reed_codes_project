@@ -36,13 +36,13 @@ class DecodeReedSolomon:
 
     def _euclidean_algorithm(self, t, syndrome):
         # Euclidean Algorithm implementation
-        r_prev = ReedSolomon()
+        r_prev = ReedSolomon(self.rs.m, self.rs.k)
         r_prev[2*t] = 1
         r_curr = syndrome
 
-        a_prev = ReedSolomon()
+        a_prev = ReedSolomon(self.rs.m, self.rs.k)
         a_prev[0] = 0
-        a_curr = ReedSolomon()
+        a_curr = ReedSolomon(self.rs.m, self.rs.k)
         a_curr[0] = 1
 
         while r_curr.degree >= t:
@@ -57,6 +57,8 @@ class DecodeReedSolomon:
             a_curr = a_next
 
         gamma_scalar = a_curr[0]
+        if gamma_scalar.coeffs == 0:
+            raise ValueError("Code has too many errors to correct")
         gamma = r_curr / gamma_scalar
         lamda = a_curr / gamma_scalar
 
@@ -77,9 +79,6 @@ class DecodeReedSolomon:
 
             error_values[pos] = y_j
 
-        if len(error_values) != error_locator_poly.degree:
-            return {}
-
         return error_values
 
     def _correct_errors(self, received_poly, error_values):
@@ -93,8 +92,7 @@ class DecodeReedSolomon:
         return corrected_poly
 
     def decode(self):
-        received_poly = self.rs
-        syndromes = self._calc_syndromes(received_poly)
+        syndromes = self._calc_syndromes(self.rs)
 
         # Check if all syndromes are 0 (no errors)
         all_zero = True
@@ -103,15 +101,14 @@ class DecodeReedSolomon:
                 all_zero = False
                 break
         if all_zero:
-            return received_poly
+            return self.rs
 
         gamma, lamda = self._euclidean_algorithm(self.rs.t, syndromes)
         positions = self._error_location(lamda)
-        if positions:
-            err_vals = self._forney_algorithm(positions, gamma, lamda)
-            if not err_vals:
-                raise ValueError("Code has too many errors to correct")
-            corrected = self._correct_errors(received_poly, err_vals)
-            return corrected
-        else:
-            return received_poly
+
+        if lamda.degree > self.rs.t or len(positions) != lamda.degree or gamma.degree >= lamda.degree:
+            raise ValueError("Code has too many errors to correct")
+
+        err_vals = self._forney_algorithm(positions, gamma, lamda)
+        corrected = self._correct_errors(self.rs, err_vals)
+        return corrected
