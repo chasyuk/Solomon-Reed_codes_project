@@ -274,7 +274,6 @@ def extract_and_decode_text(clean_data):
     return final_text
 
 def process_qr_pipeline(image_path):
-    print(f"\n--- Обробка {image_path} ---")
     img = extract_aligned_qr(image_path)
     if img is None: return
 
@@ -291,7 +290,7 @@ def process_qr_pipeline(image_path):
             try:
                 text = extract_and_decode_text(data)
                 print(f"ТЕКСТ: {text}")
-                return
+                return text
             except ValueError: pass
 
     print("Не вдалося розкодувати.")
