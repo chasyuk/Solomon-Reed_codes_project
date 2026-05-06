@@ -4,10 +4,6 @@ from reed_solomon import ReedSolomon
 from decode import DecodeReedSolomon
 from galois_field import GaloisField
 
-# ==========================================
-# ПОВНІСТЮ БРОНЬОВАНІ КЛАСИ (Без залежності від суворих перевірок decode_2.py)
-# ==========================================
-
 class QR_ReedSolomon(ReedSolomon):
     def __init__(self, ec_count):
         super().__init__(m=8, k=255 - ec_count)
@@ -77,10 +73,6 @@ class QR_Decoder(DecodeReedSolomon):
         else:
             raise ValueError("No error positions found")
 
-# ==========================================
-# ОСНОВНА ЛОГІКА ЗЧИТУВАННЯ
-# ==========================================
-
 def get_grid_size(aligned_image):
     width = aligned_image.shape[1]
     height = aligned_image.shape[0]
@@ -128,8 +120,6 @@ def extract_aligned_qr(image_path):
 def unmask_qr_matrix(aligned_image, mask_type):
     grid_size = get_grid_size(aligned_image)
 
-    # 🎯 ПОВЕРНЕНО: Снайперське зчитування (Математичний Центр)!
-    # Саме це ідеально розкодовувало 124.jpg!
     step_y = aligned_image.shape[0] / grid_size
     step_x = aligned_image.shape[1] / grid_size
     bit_matrix = np.zeros((grid_size, grid_size), dtype=int)
@@ -276,7 +266,6 @@ def extract_and_decode_text(clean_data):
             try: final_text += kanji_bytes.decode('shift_jis')
             except: pass
 
-    # М'яка валідація, щоб не заблокувати 163.jpg!
     if not final_text.strip() or len(final_text) < 2:
         raise ValueError("Порожньо або закоротко")
 
