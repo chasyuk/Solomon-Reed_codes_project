@@ -10,11 +10,11 @@ DEFAULT_POLYS = {
 
 class ReedSolomon:
 
-    __primitive_table = build_gf_antilog_table(4)
+    __primitive_table = build_gf_antilog_table(8)
     __reversed_primitive_table = {value: key for key, value in __primitive_table.items()}
 
 
-    def __init__(self, m=4, k=11):
+    def __init__(self, m=8, k=11):
         self.m = m
         self.k = k
         self.gf_size = 2**m
@@ -35,7 +35,7 @@ class ReedSolomon:
             self.poly.append(GaloisField(self.m, self.gen_poly, 0))
 
         self.poly[degree] = value
-            
+
     def __getitem__(self, degree):
         if degree >= len(self.poly):
             return GaloisField(self.m, self.gen_poly, 0)

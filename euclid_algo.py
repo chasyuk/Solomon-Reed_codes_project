@@ -1,23 +1,20 @@
 from reed_solomon import ReedSolomon
 
 def euclidean_algorithm(t, syndrome):
-    a1 = 0
-    a2 = 1
+    r0 = ReedSolomon(m=8, k=syndrome.k)
+    r0[2*t] = 1
 
-    x = ReedSolomon()
-    x[0] = 1
-    quotinent = x / syndrome
-    remainder = x % syndrome
-    while quotinent.degree >= t:
-        temp = quotinent % remainder
-        quotinent = remainder
-        remainder = temp
+    r1 = syndrome
 
-        temp = a1 + quotinent * a2
-        a1 = a2
-        a2 = temp
+    a0 = ReedSolomon(m=8, k=syndrome.k)
+    a1 = ReedSolomon(m=8, k=syndrome.k)
+    a1[0] = 1
 
-    gamma = remainder / 9
-    lamda = a2 / 9
+    while r1.degree >= t:
+        q = r0 / r1
+        r_next = r0 % r1
+        a_next = a0 + (q * a1)
+        r0, r1 = r1, r_next
+        a0, a1 = a1, a_next
 
-    return gamma, lamda
+    return r1, a1

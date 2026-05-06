@@ -5,7 +5,7 @@ from primitive_table import build_gf_antilog_table
 
 class GaloisField:
 
-    __primitive_table = build_gf_antilog_table(4)
+    __primitive_table = build_gf_antilog_table(8)
     __reversed_primitive_table = {value: key for key, value in __primitive_table.items()}
 
 
