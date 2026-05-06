@@ -17,7 +17,7 @@ def build_gf_antilog_table(m, primitive_poly=None):
         primitive_poly = DEFAULT_POLYS[m]
 
     field_size   = 1 << m
-    cycle_length = field_size - 1
+    cycle_length = field_size
     overflow_bit = field_size
 
     antilog = [0] * field_size
@@ -33,10 +33,9 @@ def build_gf_antilog_table(m, primitive_poly=None):
         antilog_table[i] = bin(antilog[i])
 
 
-
     return antilog_table
 
 if __name__ == "__main__":
-    a = build_gf_antilog_table(m=2)
+    a = build_gf_antilog_table(4)
     print(a)
     # print(int(a[1] + a[2]), 2)

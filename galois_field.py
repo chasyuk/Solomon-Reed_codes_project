@@ -5,11 +5,12 @@ from primitive_table import build_gf_antilog_table
 
 class GaloisField:
 
-    __primitive_table = build_gf_antilog_table(4)
-    __reversed_primitive_table = {value: key for key, value in __primitive_table.items()}
+
 
 
     def __init__(self, degree, generator_poly, coeffs):
+        self.__primitive_table = build_gf_antilog_table(degree)
+        self.__reversed_primitive_table = {value: key for key, value in self.__primitive_table.items()}
         self._m = degree
         self.degree = 2 ** degree
         self._generator_poly = generator_poly
@@ -25,7 +26,7 @@ class GaloisField:
     def __mul__(self, other):
         if self.coeffs == 0 or other.coeffs == 0:
             return GaloisField(self._m, self._generator_poly, 0)
-        new_degree = self.__reversed_primitive_table[f"{bin(self.coeffs)}"] + self.__reversed_primitive_table[f"{bin(other.coeffs)}"]
+        new_degree = self.__reversed_primitive_table[bin(self.coeffs)] + self.__reversed_primitive_table[bin(other.coeffs)]
         new_degree %= (self.degree - 1)
 
         return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[new_degree], 2))
@@ -53,6 +54,7 @@ class GaloisField:
 
 
         return polynomial[:-2]
+
 
     def __repr__(self):
         return str(self.coeffs)
