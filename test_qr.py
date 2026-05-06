@@ -43,5 +43,5 @@ files = [
 ]
 
 for name in files:
-    print(f"\n--- Сканування {name} ---")
+    # print(f"\n--- Сканування {name} ---")
     process_qr_pipeline(f"test_data/{name}")
