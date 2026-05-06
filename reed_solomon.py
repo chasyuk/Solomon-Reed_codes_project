@@ -186,66 +186,6 @@ class ReedSolomon:
 
         return polynomial[:-1]
 
-class DecodeReedSolomon:
-    def __init__(self, message_to_decode):
-        self.rs = message_to_decode
-
-    def calc_syndromes(self, received_poly):
-        syndromes_poly = ReedSolomon(self.rs.m, self.rs.k)
-
-        for i in range(2 * self.rs.t):
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[i]
-            alpha_val = int(alpha_bin_str, 2)
-            x_val = GaloisField(self.rs.m, self.rs.gen_poly, alpha_val)
-
-            syndrome_value = received_poly.evaluate_poly(x_val)
-            syndromes_poly[i] = syndrome_value
-
-        return syndromes_poly
-
-    def error_location(self, error_locator_poly):
-        error_positions = []
-
-        for i in range(self.rs.n):
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[i]
-            alpha_val = int(alpha_bin_str, 2)
-            alpha_i = GaloisField(self.rs.m, self.rs.gen_poly, alpha_val)
-            alpha_inverse = alpha_i.inverse()
-
-            result = error_locator_poly.evaluate_poly(alpha_inverse)
-
-            if result.coeffs == 0:
-                error_positions.append(i)
-
-        return error_positions
-
-    def forney_algorithm(self, error_positions, error_evaluator_poly, error_locator_poly):
-        error_values = {}
-        locator_derivative = error_locator_poly.form_derivative()
-
-        for pos in error_positions:
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[pos]
-            x_j = GaloisField(self.rs.m, self.rs.gen_poly, int(alpha_bin_str, 2))
-            x_j_inv = x_j.inverse()
-
-            omega_val = error_evaluator_poly.evaluate_poly(x_j_inv)
-            lambda_deriv_val = locator_derivative.evaluate_poly(x_j_inv)
-            y_j = x_j * (omega_val / lambda_deriv_val)
-
-            error_values[pos] = y_j
-
-        return error_values
-
-    def correct_errors(self, received_poly, error_values):
-        corrected_poly = ReedSolomon(self.rs.m, self.rs.k)
-        for i in range(received_poly.degree + 1):
-            corrected_poly[i] = received_poly[i]
-
-        for pos, error_val in error_values.items():
-            corrected_poly[pos] = corrected_poly[pos] + error_val
-
-        return corrected_poly
-
 
 if __name__ == '__main__':
     g = ReedSolomon(4, 11)
