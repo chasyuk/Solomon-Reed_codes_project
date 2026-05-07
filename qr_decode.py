@@ -289,12 +289,11 @@ def process_qr_pipeline(image_path):
         if data:
             try:
                 text = extract_and_decode_text(data)
-                print(f"ТЕКСТ: {text}")
                 return text
             except ValueError: pass
 
-    print("Не вдалося розкодувати.")
+    return "Не вдалося розкодувати."
 
 if __name__ == "__main__":
-    for i in ["1.jpg", "404.jpg", "124.jpg", "163.jpg", "145.jpg"]:
+    for i in ["2.jpg"]:
         process_qr_pipeline(f"test_data/{i}")
