@@ -54,14 +54,9 @@ def automatic_rs_handler(data_list, m=8, k=223):
     симулює помилки та повертає відновлені дані.
     """
     bit_stream = serialize(data_list)
-    print(f"[*] Бітовий потік ({len(bit_stream)} біт): {bit_stream}")
-
     symbols = pack_to_symbols(bit_stream, m)
     rs = rs_encode(symbols, m, k)
-    print(f"[*] Закодовано. Степінь полінома: {rs.degree}")
-
     bad_indices = rs_inject_errors(rs, count=2)
-    print(f"[!] Помилки у позиціях: {bad_indices}")
 
     fixed_symbols = rs_decode(rs, len(symbols))
     recovered_bits = unpack_from_symbols(fixed_symbols, m, len(bit_stream))
