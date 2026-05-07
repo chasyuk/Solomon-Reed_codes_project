@@ -28,7 +28,7 @@ def build_gf_antilog_table(m, primitive_poly=None):
         if element & overflow_bit:
             element ^= primitive_poly
 
-    antilog_table = {0: 0}
+    antilog_table = {}
     for i in range(cycle_length):
         antilog_table[i] = bin(antilog[i])
 
