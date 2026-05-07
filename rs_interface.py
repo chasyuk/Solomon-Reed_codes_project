@@ -63,18 +63,20 @@ class RSApp:
 
 
     def step_decode(self):
-        received = ReedSolomon(8, 251)
-        for i, b in enumerate(self.entry_cw.get().split()):
-            received[i] = int(b, 2)
+        try:
+            received = ReedSolomon(8, 251)
+            for i, b in enumerate(self.entry_cw.get().split()):
+                received[i] = int(b, 2)
 
-        dec = DecodeReedSolomon(received)
-        fixed = dec.decode()
-        fixed.get_original()
+            fixed = DecodeReedSolomon(received).decode()
+            fixed.get_original()
 
-        orig_len = len(self.entry_in.get())
-        text = "".join(chr(fixed[i].coeffs) for i in range(orig_len))
-
-        self.lbl_result.config(text=f"Результат: {text}", fg="green")
+            text = "".join(chr(fixed[i].coeffs) for i in range(len(self.entry_in.get())))
+            self.lbl_result.config(text=f"Результат: {text}", fg="green")
+        except ValueError as e:
+            self.lbl_result.config(text=str(e), fg="red")
+        except Exception as e:
+            messagebox.showerror("Помилка декодування", str(e))
 
     # Вкладка 2
     def _qr_tab(self, parent):
