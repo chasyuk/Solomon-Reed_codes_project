@@ -28,37 +28,6 @@ def introduce_random_errors(rs_poly, num_errors):
 
     return error_positions
 
-def introduce_burst_error(rs_poly, start_index, burst_length):
-    """
-    Introduces consecutive errors starting at `start_index` for `burst_length` symbols.
-    This simulates a scratch on a CD or a physical smudge on a QR code.
-    """
-    length = len(rs_poly.poly)
-    corrupted_positions = []
-
-    for i in range(start_index, min(start_index + burst_length, length)):
-        # Flip all bits in the symbol to ensure it is thoroughly corrupted
-        current_val = rs_poly[i].coeffs
-        rs_poly[i] = current_val ^ 0xFF
-        corrupted_positions.append(i)
-
-    return corrupted_positions
-
-def introduce_custom_errors(rs_poly, error_dict):
-    """
-    Introduces specific bit-flips at specific indices using XOR logic.
-    `error_dict` format: {index: XOR_mask, ...}
-
-    Example: {3: 0b00000001, 10: 0xFF}
-    This will flip the last bit of the symbol at index 3, and flip ALL bits at index 10.
-    """
-    for pos, xor_mask in error_dict.items():
-        if 0 <= pos < len(rs_poly.poly):
-            current_val = rs_poly[pos].coeffs
-            rs_poly[pos] = current_val ^ xor_mask
-
-    return list(error_dict.keys())
-
 # --- Quick Test ---
 if __name__ == "__main__":
     from core.reed_solomon import ReedSolomon

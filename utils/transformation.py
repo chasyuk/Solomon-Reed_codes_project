@@ -2,7 +2,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import random
 from core.reed_solomon import ReedSolomon
 
 def pack_to_symbols(bit_string, m):
@@ -29,13 +28,6 @@ def deserialize(bit_string, data_list):
         results.append(int(bit_string[pos:pos + bits], 2))
         pos += bits
     return results
-
-
-def rs_inject_errors(rs, count=2):
-    indices = random.sample(range(rs.degree + 1), count)
-    for idx in indices:
-        rs.poly[idx].coeffs ^= 1
-    return indices
 
 def transfrom_to_reed_solomon_code(msg, m=8, k=223):
     if not isinstance(msg, str):

@@ -26,6 +26,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+qr_clean.png
+qr_damaged.png
+qr_encoded.png
+my_qrcode.png
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

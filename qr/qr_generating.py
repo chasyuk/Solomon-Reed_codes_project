@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import random
 
 import qrcode
+import qrcode.base
 
 from qr.qr_rs_codec import create_data_core_rs
 
@@ -67,32 +68,90 @@ def modules_to_pil(modules, box_size=10, border=4):
     return img
 
 
-def damage_qr_modules(modules, num_flips, rng=None):
+# ---------------------------------------------------------------------------
+# Codeword-level damage (correct implementation)
+# ---------------------------------------------------------------------------
+
+def _qr_data_module_positions(size: int) -> list[tuple[int, int]]:
     """
-    Flip ``num_flips`` data modules (skipping finder patterns and timing lines)
-    for a visible damage demo. Returns a new matrix; ``modules`` is not modified.
+    Return (row, col) for every data/parity module in the true QR read order
+    (right-to-left zigzag column pairs, bottom-to-top / top-to-bottom alternating).
+    Skips all function-pattern modules: finder corners, separators, timing strips,
+    format info cells.
+    """
+    def is_function(r, c, n):
+        if r == 6 or c == 6:          # timing strips
+            return True
+        if r < 9 and c < 9:           # top-left finder + separator + format
+            return True
+        if r < 9 and c >= n - 8:      # top-right finder + separator + format
+            return True
+        if r >= n - 8 and c < 9:      # bottom-left finder + separator + format
+            return True
+        return False
+
+    positions = []
+    col = size - 1
+    going_up = True
+    while col >= 1:
+        if col == 6:          # skip vertical timing strip column pair
+            col -= 1
+            continue
+        for delta in range(size):
+            row = (size - 1 - delta) if going_up else delta
+            for dc in (0, 1):
+                c = col - dc
+                if 0 <= c < size and not is_function(row, c, size):
+                    positions.append((row, c))
+        going_up = not going_up
+        col -= 2
+    return positions
+
+
+def qr_correction_capacity(version: int, error_correction=qrcode.constants.ERROR_CORRECT_H) -> int:
+    """
+    Total RS codeword errors correctable across **all** RS blocks for the given
+    QR version and EC level.  Each block independently corrects ⌊ec_per_block/2⌋
+    errors, so the total can be much larger than 16 for higher versions.
+    """
+    blocks = qrcode.base.rs_blocks(version, error_correction)
+    return sum((block.total_count - block.data_count) // 2 for block in blocks)
+
+
+def damage_qr_modules(modules, num_errors, rng=None):
+    """
+    Damage exactly ``num_errors`` real RS codewords in the QR module matrix.
+
+    Modules are read in the true QR zigzag order and grouped into 8-bit
+    codewords — exactly as a real decoder reads them.  Each chosen codeword
+    receives a random non-zero XOR mask, so every damaged codeword is a
+    guaranteed distinct RS error symbol.
+
+    Returns a new matrix; ``modules`` is not modified.
+    Stores bookkeeping on the function object:
+      ``damage_qr_modules.last_total_codewords``  – total codewords in this QR
     """
     rng = rng or random.Random()
-    h, w = len(modules), len(modules[0])
-    candidates = []
-    for r in range(h):
-        for c in range(w):
-            if r < 9 and c < 9:
-                continue
-            if r < 9 and c >= w - 8:
-                continue
-            if r >= h - 8 and c < 9:
-                continue
-            if r == 6 or c == 6:
-                continue
-            candidates.append((r, c))
+    size = len(modules)
+    positions = _qr_data_module_positions(size)
+
+    # group into 8-bit codewords in true read order
+    codewords = [positions[i:i + 8] for i in range(0, len(positions) - 7, 8)]
+    damage_qr_modules.last_total_codewords = len(codewords)
+
+    n = min(int(num_errors), len(codewords))
+    chosen_indices = rng.sample(range(len(codewords)), n)
+
     out = [list(row) for row in modules]
-    n = min(int(num_flips), len(candidates))
-    rng.shuffle(candidates)
-    for i in range(n):
-        r, c = candidates[i]
-        out[r][c] = not out[r][c]
+    for idx in chosen_indices:
+        mask = rng.randint(1, 255)   # non-zero → at least 1 module flips per codeword
+        for bit_pos, (r, c) in enumerate(codewords[idx]):
+            if (mask >> bit_pos) & 1:
+                out[r][c] = not out[r][c]
+
     return out
+
+damage_qr_modules.last_total_codewords = 0
 
 
 def generate_qr_code(message, filename="my_qrcode.png"):
