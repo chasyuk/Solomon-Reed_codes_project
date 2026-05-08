@@ -1,5 +1,8 @@
 # Reed–Solomon & QR Toolkit
 
+Звіт: https://docs.google.com/document/d/12PFRX38U9i4QcmktaoKsAeYkvkikC5H3_jeaSmcFGSQ/edit?tab=t.0
+Презентація: https://www.canva.com/design/DAHJEd4o-gs/I9Lv92i6MXZ3_zSVb-o0Nw/edit?ui=e30
+
 A pure-Python implementation of **Reed–Solomon error-correcting codes** applied to QR code generation, damage simulation, and recovery. Every ECC byte in the QR codes is produced by the custom `core.reed_solomon` stack — no third-party RS libraries involved.
 
 ---
