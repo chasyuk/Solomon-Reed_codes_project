@@ -34,6 +34,7 @@ from qr.qr_generating import (
     build_qr_modules_and_image,
     damage_qr_modules,
     modules_to_pil,
+    qr_correction_capacity,
 )
 from qr.qr_decode import decode_qr_from_modules_report, decode_qr_full_report
 
@@ -62,6 +63,7 @@ class ReedSolomonGUI(ctk.CTk):
         self._clean_modules: list[list[bool]] | None = None
         self._damaged_modules: list[list[bool]] | None = None
         self._last_clean_text: str = ""
+        self._rs_capacity: int = 32          # updated after each encode
 
         self._img_clean: ctk.CTkImage | None = None
         self._img_damaged: ctk.CTkImage | None = None
@@ -112,7 +114,7 @@ class ReedSolomonGUI(ctk.CTk):
         row.pack(fill="x", pady=(4, 0))
         self.ent_message = ctk.CTkEntry(row, placeholder_text="Type text to encode…")
         self.ent_message.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self.ent_message.insert(0, "Error correction demo")
+        self.ent_message.insert(0, "Можна мою контрольну перевірить пан Андрій?")
         ctk.CTkButton(row, text="Encode QR", width=120, command=self._lab_encode).pack(
             side="left"
         )
@@ -137,11 +139,11 @@ class ReedSolomonGUI(ctk.CTk):
         ctrl = ctk.CTkFrame(t, fg_color="transparent")
         ctrl.pack(fill="x", pady=12)
 
-        ctk.CTkLabel(ctrl, text="Module flips (data area only)").grid(row=0, column=0, sticky="w")
-        self.slider_flips = ctk.CTkSlider(ctrl, from_=0, to=80, number_of_steps=80, command=self._noop_slider)
-        self.slider_flips.set(20)
+        ctk.CTkLabel(ctrl, text="Corrupted bytes (data area)").grid(row=0, column=0, sticky="w")
+        self.slider_flips = ctk.CTkSlider(ctrl, from_=0, to=32, number_of_steps=32, command=self._noop_slider)
+        self.slider_flips.set(8)
         self.slider_flips.grid(row=0, column=1, sticky="ew", padx=12)
-        self.lbl_flip_val = ctk.CTkLabel(ctrl, text="20", width=36)
+        self.lbl_flip_val = ctk.CTkLabel(ctrl, text="8", width=36)
         self.lbl_flip_val.grid(row=0, column=2)
         ctrl.grid_columnconfigure(1, weight=1)
 
@@ -153,7 +155,7 @@ class ReedSolomonGUI(ctk.CTk):
         ctk.CTkButton(seed_row, text="Apply damage", command=self._lab_damage).pack(side="left", padx=4)
         ctk.CTkButton(
             seed_row,
-            text="Recover (mask + Reed–Solomon)",
+            text="Recover",
             fg_color=("#1f538d", "#1f538d"),
             command=self._lab_recover,
         ).pack(side="left", padx=4)
@@ -206,9 +208,22 @@ class ReedSolomonGUI(ctk.CTk):
         self._set_lab_image(self.lbl_lab_clean, clean_pil)
         self._set_lab_image(self.lbl_lab_damaged, None)
         self._set_lab_image(self.lbl_lab_recovered, None)
+
+        # update slider to show real RS capacity for this QR version
+        version = len(self._clean_modules) // 4 - 1  # rough: (4v+17-17)/4 ≈ v
+        try:
+            cap = qr_correction_capacity(version)
+        except Exception:
+            cap = 32
+        self._rs_capacity = cap
+        steps = min(cap, 40)          # at most 40 ticks for a clean slider
+        self.slider_flips.configure(to=cap, number_of_steps=steps)
+        self.slider_flips.set(min(int(self.slider_flips.get()), cap))
+
         self.lbl_lab_status.configure(
-            text=f"Encoded: {len(text)} characters · {len(self._clean_modules)}×{len(self._clean_modules)} modules. "
-            "Adjust flips and press “Apply damage”.",
+            text=f"Encoded: {len(text)} characters · {len(self._clean_modules)}\u00d7{len(self._clean_modules)} modules "
+            f"(QR v{version}, RS capacity: \u2264{cap} codeword errors). "
+            "Adjust corrupted bytes and press \u201cApply damage\u201d.",
             text_color=("gray20", "gray80"),
         )
 
@@ -226,21 +241,16 @@ class ReedSolomonGUI(ctk.CTk):
         pil = modules_to_pil(self._damaged_modules, box_size=RENDER_BOX, border=RENDER_BORDER)
         self._set_lab_image(self.lbl_lab_damaged, pil)
         self._set_lab_image(self.lbl_lab_recovered, None)
+        cap = self._rs_capacity
         self.lbl_lab_status.configure(
-            text=f"Damaged: flipped {min(n, self._count_flips())} data modules (finder & timing preserved). "
-            "Run “Recover” to run our masking + Reed–Solomon pipeline on a rendered image.",
-            text_color=("gray20", "gray80"),
+            text=f"Damaged: {n} codeword byte errors injected · RS capacity for this QR: \u2264{cap} errors. "
+            f"{'Within capacity — should recover.' if n <= cap else f'EXCEEDS capacity by {n - cap} — likely to fail.'}",
+            text_color=("gray20", "gray80") if n <= cap else ("#d35400", "#f39c12"),
         )
 
-    def _count_flips(self) -> int:
-        if not self._clean_modules or not self._damaged_modules:
-            return 0
-        return sum(
-            1
-            for r in range(len(self._clean_modules))
-            for c in range(len(self._clean_modules[r]))
-            if self._clean_modules[r][c] != self._damaged_modules[r][c]
-        )
+    def _count_damaged_bytes(self) -> int:
+        """Returns the slider value — now always exact since damage is codeword-level."""
+        return int(self.slider_flips.get())
 
     def _lab_recover(self):
         if not self._damaged_modules:
@@ -268,7 +278,7 @@ class ReedSolomonGUI(ctk.CTk):
             self.lbl_lab_status.configure(
                 text=f"Decoder failed · {report['detail']}\n"
                 f"({report.get('detector_note', '')})\n"
-                "Tip: reduce module flips or set a fixed seed and try again — capacity depends on QR version.",
+                "Tip: reduce byte errors (≤16 for H-level) or set a fixed seed and try again.",
                 text_color=("#c0392b", "#e74c3c"),
             )
             self._set_lab_image(self.lbl_lab_recovered, None)
@@ -366,6 +376,135 @@ class ReedSolomonGUI(ctk.CTk):
             messagebox.showwarning("Scan", "Decoder did not recover a payload — see report.")
 
 
+def _cli():
+    import argparse, random, sys
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(
+        prog="rs_interface.py",
+        description="Reed–Solomon QR lab — GUI launcher and headless CLI.",
+    )
+    sub = parser.add_subparsers(dest="cmd", metavar="COMMAND")
+
+    # --- encode -----------------------------------------------------------
+    p_enc = sub.add_parser("encode", help="Encode text → QR image.")
+    p_enc.add_argument("message", help="Text to encode.")
+    p_enc.add_argument("-o", "--output", default="qr_encoded.png",
+                       help="Output PNG path (default: qr_encoded.png).")
+    p_enc.add_argument("--ec", choices=["L", "M", "Q", "H"], default="H",
+                       help="Error-correction level (default: H).")
+
+    # --- damage -----------------------------------------------------------
+    p_dmg = sub.add_parser("damage", help="Encode text, apply codeword-level damage, save image.")
+    p_dmg.add_argument("message", help="Text to encode.")
+    p_dmg.add_argument("-e", "--errors", type=int, default=8,
+                       help="Number of codeword byte errors to inject (default: 8).")
+    p_dmg.add_argument("-s", "--seed", type=int, default=None,
+                       help="Random seed for reproducible damage.")
+    p_dmg.add_argument("-o", "--output", default="qr_damaged.png",
+                       help="Output PNG path (default: qr_damaged.png).")
+
+    # --- decode -----------------------------------------------------------
+    p_dec = sub.add_parser("decode", help="Decode a QR image using our RS pipeline.")
+    p_dec.add_argument("image", help="Path to QR image file.")
+
+    # --- demo -------------------------------------------------------------
+    p_demo = sub.add_parser(
+        "demo",
+        help="Full pipeline: encode → damage → recover, print results.",
+    )
+    p_demo.add_argument("message", help="Text to encode.")
+    p_demo.add_argument("-e", "--errors", type=int, default=8,
+                        help="Number of codeword byte errors (default: 8).")
+    p_demo.add_argument("-s", "--seed", type=int, default=42,
+                        help="Random seed (default: 42).")
+    p_demo.add_argument("--save", action="store_true",
+                        help="Also write qr_clean.png, qr_damaged.png to disk.")
+
+    args = parser.parse_args()
+
+    # No subcommand → launch GUI
+    if args.cmd is None:
+        return ("gui", None)   # caller launches GUI
+
+    import qrcode as _qrcode
+
+    EC_MAP = {
+        "L": _qrcode.constants.ERROR_CORRECT_L,
+        "M": _qrcode.constants.ERROR_CORRECT_M,
+        "Q": _qrcode.constants.ERROR_CORRECT_Q,
+        "H": _qrcode.constants.ERROR_CORRECT_H,
+    }
+
+    if args.cmd == "encode":
+        ec = EC_MAP[args.ec]
+        mods, pil = build_qr_modules_and_image(args.message, error_correction=ec)
+        pil.save(args.output)
+        v = len(mods) // 4 - 1
+        cap = qr_correction_capacity(v)
+        print(f"Encoded '{args.message[:40]}{'…' if len(args.message)>40 else ''}'")
+        print(f"  QR version {v}  ({len(mods)}×{len(mods)} modules)  EC={args.ec}")
+        print(f"  RS capacity: ≤{cap} codeword errors")
+        print(f"  Saved → {args.output}")
+
+    elif args.cmd == "damage":
+        mods, _ = build_qr_modules_and_image(args.message)
+        rng = random.Random(args.seed)
+        dmg = damage_qr_modules(mods, args.errors, rng=rng)
+        from qr.qr_generating import modules_to_pil as _m2p
+        pil = _m2p(dmg)
+        pil.save(args.output)
+        v = len(mods) // 4 - 1
+        cap = qr_correction_capacity(v)
+        status = "within capacity" if args.errors <= cap else f"EXCEEDS by {args.errors - cap}"
+        print(f"Damaged {args.errors} codewords  (RS capacity ≤{cap} → {status})")
+        print(f"  Saved → {args.output}")
+
+    elif args.cmd == "decode":
+        report = decode_qr_full_report(Path(args.image))
+        print(f"Success : {report['ok']}")
+        print(f"Detail  : {report['detail']}")
+        if report.get("mask") is not None:
+            print(f"Mask    : {report['mask']}")
+        if report.get("text"):
+            print(f"Payload : {report['text']}")
+        sys.exit(0 if report["ok"] else 1)
+
+    elif args.cmd == "demo":
+        mods, clean_pil = build_qr_modules_and_image(args.message)
+        v = len(mods) // 4 - 1
+        cap = qr_correction_capacity(v)
+        rng = random.Random(args.seed)
+        dmg = damage_qr_modules(mods, args.errors, rng=rng)
+
+        print(f"Message : {args.message!r}")
+        print(f"QR      : version {v} ({len(mods)}×{len(mods)})  RS capacity ≤{cap} errors")
+        print(f"Damage  : {args.errors} codeword errors injected  "
+              f"({'OK — within capacity' if args.errors <= cap else f'OVER by {args.errors - cap}'})")
+
+        if args.save:
+            clean_pil.save("qr_clean.png")
+            from qr.qr_generating import modules_to_pil as _m2p
+            _m2p(dmg).save("qr_damaged.png")
+            print("Saved   : qr_clean.png  qr_damaged.png")
+
+        report = decode_qr_from_modules_report(dmg)
+        print(f"\nRecover : {'SUCCESS' if report['ok'] else 'FAILED'}")
+        print(f"Detail  : {report['detail']}")
+        if report.get("text"):
+            match = "✓ exact match" if report["text"] == args.message else "✗ mismatch"
+            print(f"Payload : {report['text']!r}  {match}")
+        sys.exit(0 if report["ok"] else 1)
+
+    return (None, None)   # CLI handled
+
+
 if __name__ == "__main__":
-    app = ReedSolomonGUI()
-    app.mainloop()
+    result = _cli()
+    if result and result[0] == "gui":
+        app = ReedSolomonGUI()
+        prefill = result[1]
+        if prefill:
+            app.ent_message.delete(0, "end")
+            app.ent_message.insert(0, prefill)
+        app.mainloop()
