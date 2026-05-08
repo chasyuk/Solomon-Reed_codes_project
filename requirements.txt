@@ -1,0 +1,11 @@
+customtkinter
+opencv-contrib-python
+numpy
+Pillow
+qrcode
+matplotlib
+pytest
+reedsolo
+unireedsolomon
+bchlib
+galois

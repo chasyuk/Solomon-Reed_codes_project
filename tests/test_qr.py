@@ -1,4 +1,13 @@
-from qr_decode import process_qr_pipeline
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from qr.qr_decode import process_qr_pipeline
+
+TEST_DATA_DIR = ROOT_DIR / "test_data"
 
 files = [
     "1.jpg",
@@ -42,6 +51,11 @@ files = [
     "WhatsApp Image 2022-06-29 at 13.33.16 (11).jpg"
 ]
 
-for name in files:
-    # print(f"\n--- Сканування {name} ---")
-    process_qr_pipeline(f"test_data/{name}")
+
+def test_qr_pipeline_all_images():
+    for name in files:
+        print(process_qr_pipeline(str(TEST_DATA_DIR / name)))
+
+
+if __name__ == "__main__":
+    test_qr_pipeline_all_images()

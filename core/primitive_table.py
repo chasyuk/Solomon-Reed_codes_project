@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 def build_gf_antilog_table(m, primitive_poly=None):
     """
     Build and display the GF(2^m) antilog table in the canonical format:

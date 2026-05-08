@@ -1,5 +1,9 @@
-from reed_solomon import  ReedSolomon
-from decode import DecodeReedSolomon
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.reed_solomon import ReedSolomon
+from core.decode import DecodeReedSolomon
 
 # Too much errors example
 

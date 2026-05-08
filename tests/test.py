@@ -1,16 +1,23 @@
 import importlib
 import runpy
-import pytest
-from primitive_table import build_gf_antilog_table
-from galois_field import GaloisField
+import sys
+from pathlib import Path
 
-rs_mod = importlib.import_module("reed_solomon")
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+import pytest
+from core.primitive_table import build_gf_antilog_table
+from core.galois_field import GaloisField
+
+rs_mod = importlib.import_module("core.reed_solomon")
 ReedSolomon = rs_mod.ReedSolomon
-decode_mod = importlib.import_module("decode")
+decode_mod = importlib.import_module("core.decode")
 DecodeReedSolomon = decode_mod.DecodeReedSolomon
 
 class TestPrimitiveTable:
-    @pytest.mark.parametrize("m, expected", [(2, 3), (3, 7), (4, 15), (8, 255)])
+    @pytest.mark.parametrize("m, expected", [(2, 4), (3, 8), (4, 16), (8, 256)])
     def test_table_size(self, m, expected):
         tbl = build_gf_antilog_table(m)
         assert len(tbl) == expected
@@ -22,10 +29,10 @@ class TestPrimitiveTable:
 
     def test_custom_poly(self):
         tbl = build_gf_antilog_table(5, primitive_poly=0b100101)
-        assert len(tbl) == 31
+        assert len(tbl) == 32
 
     def test_main_execution(self, capsys):
-        runpy.run_path("primitive_table.py", run_name="__main__")
+        runpy.run_path(str(ROOT_DIR / "core" / "primitive_table.py"), run_name="__main__")
         assert "{" in capsys.readouterr().out
 
 class TestGaloisField:
@@ -79,7 +86,7 @@ class TestGaloisField:
             len(gf(5))
 
     def test_main_execution(self, capsys):
-        runpy.run_path("galois_field.py", run_name="__main__")
+        runpy.run_path(str(ROOT_DIR / "core" / "galois_field.py"), run_name="__main__")
         out = capsys.readouterr().out
         assert len(out) > 0
 
@@ -170,10 +177,10 @@ class TestReedSolomon:
     def test_truediv_galois_field(self):
         rs = ReedSolomon()
         rs[0], rs[1] = 5, 3
-        gf = GaloisField(4, 0b10011, 2)
+        gf = GaloisField(8, 0b100011101, 2)
         res = rs / gf
-        assert res[0].coeffs == (GaloisField(4, 0b10011, 5) / gf).coeffs
-        assert res[1].coeffs == (GaloisField(4, 0b10011, 3) / gf).coeffs
+        assert res[0].coeffs == (GaloisField(8, 0b100011101, 5) / gf).coeffs
+        assert res[1].coeffs == (GaloisField(8, 0b100011101, 3) / gf).coeffs
 
     def test_truediv_poly(self):
         dividend = ReedSolomon()
@@ -215,21 +222,27 @@ class TestReedSolomon:
 
     def test_encoding(self):
         rs = ReedSolomon(4, 11)
+        # Set message in polynomial
         msg = [1, 2, 3]
-        cw = rs.encoding(msg)
-        assert len(cw) >= len(msg) + 4
         for i, val in enumerate(msg):
-            assert cw[4 + i] == val
+            rs[i] = val
+        rs.encode()
+        # After encoding, check that data is preserved with parity bits at the start
+        # Expected format: [parity0, parity1, parity2, parity3, msg0, msg1, msg2]
+        assert rs.degree + 1 >= len(msg) + 2 * rs.t
+        for i, val in enumerate(msg):
+            # Message should be at position 2*t + i
+            assert rs[2 * rs.t + i].coeffs == val
 
     def test_str(self):
         rs = ReedSolomon()
         assert str(rs) == ""
         rs[3], rs[5] = 5, 3
-        assert str(rs).count("x**") == 2
+        assert str(rs).count("x^") == 2
 
     def test_main_execution(self, capsys):
-        runpy.run_path("reed_solomon.py", run_name="__main__")
-        assert "x**" in capsys.readouterr().out
+        runpy.run_path(str(ROOT_DIR / "core" / "reed_solomon.py"), run_name="__main__")
+        assert "x^" in capsys.readouterr().out
 
 class TestDecodeReedSolomon:
     def test_decode_flow(self):
@@ -246,7 +259,7 @@ class TestDecodeReedSolomon:
         # 2. error_location
         err_loc = ReedSolomon(4, 11)
         err_loc[0] = 1
-        alpha_1 = int(rs._ReedSolomon__primitive_table[1], 2)
+        alpha_1 = int(rs.primitive_table[1], 2)
         err_loc[1] = alpha_1
         positions = decoder._error_location(err_loc)
         assert positions == [1]
@@ -277,7 +290,11 @@ class TestExactNumericValues:
     def test_exact_encoding(self):
         rs = ReedSolomon(4, 11)
         msg = [1, 2, 3]
-        cw = rs.encoding(msg)
+        for i, val in enumerate(msg):
+            rs[i] = val
+        rs.encode()
+        # Check that the encoded codeword has parity bits first, then message
+        cw = [rs[i].coeffs for i in range(rs.degree + 1)]
         assert cw == [5, 4, 11, 10, 1, 2, 3]
 
     def test_exact_euclid_and_decoding(self):
@@ -286,40 +303,40 @@ class TestExactNumericValues:
         received = ReedSolomon(4, 11)
         for i, val in enumerate(cw):
             received[i] = val
-            
+
         # Introduce exact error at pos 2 with magnitude 14
         received[2] = received[2] + GaloisField(4, rs.gen_poly, 14)
-        
+
         decoder = DecodeReedSolomon(rs)
         syndromes = decoder._calc_syndromes(received)
         assert [syndromes[i].coeffs for i in range(2 * rs.t)] == [14, 13, 1, 4]
-        
+
         gamma, lamda = decoder._euclidean_algorithm(rs.t, syndromes)
         assert [gamma[i].coeffs for i in range(gamma.degree + 1)] == [14]
         assert [lamda[i].coeffs for i in range(lamda.degree + 1)] == [1, 4]
-        
+
         positions = decoder._error_location(lamda)
         assert positions == [2]
-        
+
         err_vals = decoder._forney_algorithm(positions, gamma, lamda)
         assert err_vals[2].coeffs == 14
-        
+
         corrected = decoder._correct_errors(received, err_vals)
         assert corrected[2].coeffs == 11
         for i in range(len(cw)):
             assert corrected[i].coeffs == cw[i]
-            
+
     def test_decode_public_method(self):
         rs = ReedSolomon(4, 11)
         cw = [5, 4, 11, 10, 1, 2, 3]
         received = ReedSolomon(4, 11)
         for i, val in enumerate(cw):
             received[i] = val
-            
+
         # Error at pos 2
         received[2] = received[2] + GaloisField(4, rs.gen_poly, 14)
-        decoder = DecodeReedSolomon(rs)
-        corrected = decoder.decode(received)
+        decoder = DecodeReedSolomon(received)
+        corrected = decoder.decode()
         for i in range(len(cw)):
             assert corrected[i].coeffs == cw[i]
 

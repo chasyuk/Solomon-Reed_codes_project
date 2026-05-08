@@ -1,16 +1,14 @@
-# CODE_GEN_POLY_255 = x16 + 59x15 + 13x14 + 104x13 + 189x12 + 68x11 + 209x10 + 30x9
-# + 8x8 + 163x7 + 65x6 + 41x5 + 229x4 + 98x3 + 50x2 + 36x + 59
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from primitive_table import build_gf_antilog_table
+from core.primitive_table import build_gf_antilog_table
 
 class GaloisField:
 
-
-
-
-    def __init__(self, degree, generator_poly, coeffs):
-        self.__primitive_table = build_gf_antilog_table(degree)
-        self.__reversed_primitive_table = {value: key for key, value in self.__primitive_table.items()}
+    def __init__(self, degree, generator_poly, coeffs, primitive_table=None, reversed_primitive_table=None):
+        self.__primitive_table = build_gf_antilog_table(degree) if primitive_table is None else primitive_table
+        self.__reversed_primitive_table = {value: key for key, value in self.__primitive_table.items()} if reversed_primitive_table is None else reversed_primitive_table
         self._m = degree
         self.degree = 2 ** degree
         self._generator_poly = generator_poly
@@ -21,7 +19,7 @@ class GaloisField:
             return self
 
         res_coeffs = self.coeffs ^ other.coeffs
-        return GaloisField(self._m, self._generator_poly, res_coeffs)
+        return GaloisField(self._m, self._generator_poly, res_coeffs, self.__primitive_table, self.__reversed_primitive_table)
 
     def __mul__(self, other):
         if self.coeffs == 0 or other.coeffs == 0:
@@ -29,18 +27,18 @@ class GaloisField:
         new_degree = self.__reversed_primitive_table[bin(self.coeffs)] + self.__reversed_primitive_table[bin(other.coeffs)]
         new_degree %= (self.degree - 1)
 
-        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[new_degree], 2))
+        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[new_degree], 2), self.__primitive_table, self.__reversed_primitive_table)
 
     def inverse(self):
         p = self.__reversed_primitive_table[f"{bin(self.coeffs)}"]
         inv_p = (self.degree - 1 - p) % (self.degree - 1)
-        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[inv_p], 2))
+        return GaloisField(self._m, self._generator_poly, int(self.__primitive_table[inv_p], 2), self.__primitive_table, self.__reversed_primitive_table)
 
     def __truediv__(self, other):
         if other.coeffs == 0:
             raise ZeroDivisionError("Ділення на нуль в полі Галуа неможливе!")
         if self.coeffs == 0:
-            return GaloisField(self._m, self._generator_poly, 0)
+            return GaloisField(self._m, self._generator_poly, 0, self.__primitive_table, self.__reversed_primitive_table)
         return self * other.inverse()
 
     def __len__(self):
@@ -49,7 +47,7 @@ class GaloisField:
     def __str__(self):
         polynomial = ""
 
-        for idx, elem in enumerate(f"{self.coeffs:b}"):
+        for idx, _ in enumerate(f"{self.coeffs:b}"):
             polynomial += f"x**{self.degree - idx - 1} +"
 
 

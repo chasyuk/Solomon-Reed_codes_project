@@ -1,5 +1,9 @@
-from reed_solomon import ReedSolomon
-from galois_field import GaloisField
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.reed_solomon import ReedSolomon
+from core.galois_field import GaloisField
 
 class DecodeReedSolomon:
     def __init__(self, message_to_decode):
@@ -8,8 +12,8 @@ class DecodeReedSolomon:
     def _calc_syndromes(self, received_poly):
         syndromes_poly = ReedSolomon(self.rs.m, self.rs.k)
 
-        for i in range(2 * self.rs.t):
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[i]
+        for i in range(self.rs.n_parity):
+            alpha_bin_str = self.rs.primitive_table[i]
             alpha_val = int(alpha_bin_str, 2)
             x_val = GaloisField(self.rs.m, self.rs.gen_poly, alpha_val)
 
@@ -22,7 +26,7 @@ class DecodeReedSolomon:
         error_positions = []
 
         for i in range(self.rs.n):
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[i]
+            alpha_bin_str = self.rs.primitive_table[i]
             alpha_val = int(alpha_bin_str, 2)
             alpha_i = GaloisField(self.rs.m, self.rs.gen_poly, alpha_val)
             alpha_inverse = alpha_i.inverse()
@@ -37,7 +41,7 @@ class DecodeReedSolomon:
     def _euclidean_algorithm(self, t, syndrome):
         # Euclidean Algorithm implementation
         r_prev = ReedSolomon(self.rs.m, self.rs.k)
-        r_prev[2*t] = 1
+        r_prev[self.rs.n_parity] = 1
         r_curr = syndrome
 
         a_prev = ReedSolomon(self.rs.m, self.rs.k)
@@ -69,7 +73,7 @@ class DecodeReedSolomon:
         locator_derivative = error_locator_poly.form_derivative()
 
         for pos in error_positions:
-            alpha_bin_str = self.rs._ReedSolomon__primitive_table[pos]
+            alpha_bin_str = self.rs.primitive_table[pos]
             x_j = GaloisField(self.rs.m, self.rs.gen_poly, int(alpha_bin_str, 2))
             x_j_inv = x_j.inverse()
 
